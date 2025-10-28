@@ -1,0 +1,81 @@
+import PyPDF2
+import re
+import nltk
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from collections import Counter
+
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+pdf_path = 'Machine Learning in Agriculture.pdf'
+with open(pdf_path, 'rb') as pdf_file:
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
+    page_number = 3  
+    page_text = pdf_reader.pages[page_number].extract_text()
+
+def process_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    text = re.sub(r'\b[a-zA-Z]{1,2}\b', '', text)
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english')).union({'figure', 'table', 'chapter', 'section', 'et', 'al'})
+    filtered_tokens = [word for word in tokens if word not in stop_words]
+    stemmer = PorterStemmer()
+    lemmatizer = WordNetLemmatizer()
+    lemmatized_tokens = [lemmatizer.lemmatize(stemmer.stem(word)) for word in filtered_tokens]
+    return lemmatized_tokens
+
+def capture_contexts_by_sentence(original_text, keywords):
+    sentences = sent_tokenize(original_text)
+    keyword_contexts = {}
+
+    for keyword, _ in keywords:
+        contexts = []
+        for sentence in sentences:
+            if re.search(rf'\b{keyword}\b', sentence, re.IGNORECASE):
+                clean_sentence = re.sub(r'\s+', ' ', sentence.strip())
+                contexts.append(clean_sentence)
+        keyword_contexts[keyword] = contexts if contexts else ["No context found"]
+    return keyword_contexts
+
+
+processed_tokens = process_text(page_text)
+
+word_freq = Counter(processed_tokens)
+top_words = word_freq.most_common(20)
+
+keyword_contexts = capture_contexts_by_sentence(page_text, top_words)
+
+wordcloud = WordCloud(width=1000,
+                      height=600,
+                      background_color='black',
+                      colormap='plasma',
+                      max_words=150).generate(' '.join(processed_tokens))
+
+plt.figure(figsize=(12, 8))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.title('Word Cloud - Page 4', pad=20)
+plt.show()
+
+plt.figure(figsize=(12, 6))
+words, counts = zip(*top_words)
+plt.barh(words, counts, color='orange')
+plt.gca().invert_yaxis()
+plt.xlabel('Frequency')
+plt.title('Top 20 Keywords on Page 4')
+plt.tight_layout()
+plt.show()
+
+print("\nTop 20 Keywords on Page 4 with Context:")
+print("{:<20} {:<10} {:<}".format('Keyword', 'Count', 'Sample Context'))
+print("-" * 90)
+for word, count in top_words:
+    context_samples = keyword_contexts.get(word, ["No context found"])
+    sample_context = context_samples[0]
+    print("{:<20} {:<10} {:<}".format(word, count, sample_context))
